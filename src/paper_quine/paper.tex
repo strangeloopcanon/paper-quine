@@ -30,17 +30,17 @@ We make three claims.
 
 \section{Method}
 The pipeline is expressed in Listing~\ref{lst:verify}.
-We serialize the paper as UTF-8 bytes and train a compact autoregressive model (4 layers, hidden width 512) using teacher forcing.
-Training halts once greedy decoding from the start token emits the full target.
-Weights are quantized to per-channel int8 and embedded into Appendix~\ref{sec:weights} as Base85 blocks.
+We serialize the paper as UTF-8 bytes and synthesise a byte-level linear network.
+Each timestep maps to a deterministic 256-dimensional one-hot hidden state; an identity output projection yields logits whose argmax reproduces the next byte.
+The only learned artefact is the ordered list of hidden indices, emitted as a Base85 archive in Appendix~\ref{sec:weights}.
 Inference locks the seed, enforces CPU execution, and disables any nondeterministic kernels.
 
 \subsection{Deterministic decode protocol}
 \begin{itemize}
   \item Tokenizer: identity on bytes (no BPE drift).
   \item Decoding: temperature $0$, top-$1$, stable lexicographic tie-breaks.
-  \item Framework pins: Python 3.11.4, PyTorch 2.3.1 (CPU), NumPy 1.26.4.
-  \item Verification: decode, persist \texttt{paper.tex}, optionally compile to PDF, compute the SHA-256 hash of the published weight dump, and confirm it matches the artifact hash printed in Section~\ref{sec:hash}.
+  \item Framework pins: Python 3.11.6, NumPy 1.26.4.
+  \item Verification: decode, persist \texttt{paper.tex}, optionally compile to PDF, compute the SHA-256 hash of \texttt{weights.b85}, and confirm it matches the artifact hash printed in Section~\ref{sec:hash}.
 \end{itemize}
 
 \section{Experiments}
@@ -49,9 +49,9 @@ Baselines include gzip+SHA256, zstd+SHA256, and a naive template compressor.
 We report three metrics: Self-Reconstruction Accuracy (SRA), total bits (model + verifier + environment manifest), and compile success rate.
 
 \subsection{Results}
-Greedy decoding reaches SRA $= 100\%$ within 42 epochs.
-The quantized model plus verifier totals 53\,kB, while gzip of the \LaTeX{} occupies 55\,kB.
-The decode-and-hash verifier completes in under 800\,ms on a laptop CPU and exhibits zero variance under repeated runs.
+Greedy decoding trivially reaches SRA $= 100\%$ because the hidden indices uniquely determine the logits.
+The weight archive plus verifier script occupy roughly 5.6\,kB, whereas gzip of the \LaTeX{} occupies 2.7\,kB.
+The decode-and-hash verifier completes in under 150\,ms on a laptop CPU and exhibits zero variance under repeated runs.
 
 \section{Theory}
 Let $T$ map a byte string $b$ to a weight tensor $w$ via the deterministic training pipeline.
@@ -69,6 +69,7 @@ Despite the jokes, the same deterministic decode spine ensures byte-perfect rege
 \section{Limitations and Impact}
 The content is intentionally trivial: the model memorizes the paper.
 Any nondeterminism---hardware divergence, library upgrades, or quantization ties---breaks the quine.
+The description length of the neural representation still exceeds gzip for this manuscript; the point is controllable regeneration rather than superior compression.
 We caution against using the technique to mass-produce self-referential spam and recommend publishing both source and hashes to aid auditing.
 
 \section{Reproducibility Checklist}
@@ -93,6 +94,7 @@ The live verifier checks that the digest of \texttt{weights.b85} matches this pu
 \section{Weights Encoding}
 \label{sec:weights}
 Weights are emitted as Base85 chunks with per-block checksums.
+Each chunk encodes the position-wise hidden index that feeds the identity output projection, i.e., the exact bytes of the paper in order.
 See the project repository for the complete listing in \texttt{weights.b85}.
 
 \section{Verifier Listing}

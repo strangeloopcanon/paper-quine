@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+import numpy as np
 import pytest
 from paper_quine import model
 from paper_quine.model import DeterministicPaperLM, decode_paper
@@ -38,6 +39,10 @@ def test_llm_live_runner(tmp_path: Path) -> None:
 def test_model_reports_digest() -> None:
     model_instance = DeterministicPaperLM()
     assert model_instance.paper_sha256 == EXPECTED_PAPER_DIGEST
+    assert np.allclose(  # noqa: SLF001
+        model_instance._output_weight,
+        np.eye(model.VOCAB_SIZE, dtype=np.float32),  # noqa: SLF001
+    )
 
 
 def test_cli_main_llm_live(tmp_path: Path) -> None:
@@ -80,3 +85,11 @@ def test_load_weights_detects_digest_mismatch(monkeypatch: pytest.MonkeyPatch) -
 
     with pytest.raises(model.WeightLoadError):
         model._load_weights()  # noqa: SLF001
+
+
+def test_hidden_state_is_one_hot() -> None:
+    lm = DeterministicPaperLM()
+    vector = lm._hidden_state(42)  # noqa: SLF001
+    assert vector.shape == (model.VOCAB_SIZE,)
+    assert np.count_nonzero(vector) == 1
+    assert vector[42] == pytest.approx(1.0)
