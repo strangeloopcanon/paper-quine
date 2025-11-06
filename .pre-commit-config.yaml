@@ -23,6 +23,6 @@ repos:
     hooks:
       - id: commitizen
         name: Commitizen Conventional Commit Check
-        entry: cz check --allow-abort
+        entry: cz check --allow-abort --commit-msg-file
         language: system
         stages: [commit-msg]
